@@ -1,19 +1,13 @@
-﻿using Microsoft.SemanticKernel;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
-
-var modelId = "llama3.1:70b";
-var endpoint = "http://localhost:11434";
-var apiKey = "api-key-not-needed";
-
-// create custom http client
-var httpClient = new HttpClient
-{
-    BaseAddress = new Uri(endpoint)
-};
+using OllamaSharp;
 
 var builder = Kernel.CreateBuilder();
 
-builder.AddOpenAIChatCompletion(modelId, apiKey, httpClient: httpClient);
+builder.Services.AddScoped<IOllamaApiClient>(_ => new OllamaApiClient("http://localhost:11434"));
+
+builder.Services.AddScoped<IChatCompletionService, OllamaChatCompletionService>();
 
 var kernel = builder.Build();
 
@@ -36,7 +30,7 @@ while (true)
 
     var response = await chatService.GetChatMessageContentAsync(history);
 
-    Console.WriteLine($"Bot: {response.InnerContent}");
+    Console.WriteLine($"Bot: {response.Content}");
 
     history.AddMessage(response.Role, response.Content ?? string.Empty);
 }
