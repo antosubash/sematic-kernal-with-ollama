@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using OllamaSharp;
@@ -23,15 +24,34 @@ public class OllamaChatCompletionService : IChatCompletionService
     {
         var request = CreateChatRequest(chatHistory);
 
-        var response = await ollamaApiClient.Chat(request, cancellationToken);
+        var content = new StringBuilder();
+        List<ChatResponseStream> innerContent = [];
+        AuthorRole? authorRole = null;
+
+        await foreach (var response in ollamaApiClient.Chat(request, cancellationToken))
+        {
+            if (response == null || response.Message == null)
+            {
+                continue;
+            }
+
+            innerContent.Add(response);
+            
+            if (response.Message.Content is not null)
+            {
+                content.Append(response.Message.Content);
+            }
+
+            authorRole = GetAuthorRole(response.Message.Role);
+        }
 
         return
         [
             new ChatMessageContent
             {
-                Role = GetAuthorRole(response.Message.Role) ?? AuthorRole.Assistant,
-                Content = response.Message.Content,
-                InnerContent = response,
+                Role = authorRole ?? AuthorRole.Assistant,
+                Content = content.ToString(),
+                InnerContent = innerContent,
                 ModelId = "llama3.1"
             }
         ];
@@ -46,7 +66,7 @@ public class OllamaChatCompletionService : IChatCompletionService
     {
         var request = CreateChatRequest(chatHistory);
 
-        await foreach (var response in ollamaApiClient.StreamChat(request, cancellationToken))
+        await foreach (var response in ollamaApiClient.Chat(request, cancellationToken))
         {
             yield return new StreamingChatMessageContent(
                 role: GetAuthorRole(response.Message.Role) ?? AuthorRole.Assistant,
@@ -78,15 +98,17 @@ public class OllamaChatCompletionService : IChatCompletionService
             messages.Add(
                 new Message
                 {
-                    Role =
-                        message.Role == AuthorRole.User
-                            ? ChatRole.User
-                            : ChatRole.System,
+                    Role = message.Role == AuthorRole.User ? ChatRole.User : ChatRole.System,
                     Content = message.Content,
                 }
             );
         }
 
-        return new ChatRequest { Messages = messages, Stream = true, Model = "llama3.1" };
+        return new ChatRequest
+        {
+            Messages = messages,
+            Stream = true,
+            Model = "llama3.1"
+        };
     }
 }
