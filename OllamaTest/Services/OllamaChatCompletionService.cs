@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -28,7 +29,7 @@ public class OllamaChatCompletionService : IChatCompletionService
         List<ChatResponseStream> innerContent = [];
         AuthorRole? authorRole = null;
 
-        await foreach (var response in ollamaApiClient.Chat(request, cancellationToken))
+        await foreach (var response in ollamaApiClient.ChatAsync(request, cancellationToken))
         {
             if (response == null || response.Message == null)
             {
@@ -36,7 +37,7 @@ public class OllamaChatCompletionService : IChatCompletionService
             }
 
             innerContent.Add(response);
-            
+
             if (response.Message.Content is not null)
             {
                 content.Append(response.Message.Content);
@@ -52,7 +53,7 @@ public class OllamaChatCompletionService : IChatCompletionService
                 Role = authorRole ?? AuthorRole.Assistant,
                 Content = content.ToString(),
                 InnerContent = innerContent,
-                ModelId = "llama3.1"
+                ModelId = "llama3.2-vision"
             }
         ];
     }
@@ -61,18 +62,18 @@ public class OllamaChatCompletionService : IChatCompletionService
         ChatHistory chatHistory,
         PromptExecutionSettings? executionSettings = null,
         Kernel? kernel = null,
-        CancellationToken cancellationToken = default
+        [EnumeratorCancellation] CancellationToken cancellationToken = default
     )
     {
         var request = CreateChatRequest(chatHistory);
 
-        await foreach (var response in ollamaApiClient.Chat(request, cancellationToken))
+        await foreach (var response in ollamaApiClient.ChatAsync(request, cancellationToken))
         {
             yield return new StreamingChatMessageContent(
-                role: GetAuthorRole(response.Message.Role) ?? AuthorRole.Assistant,
-                content: response.Message.Content,
+                role: GetAuthorRole(response?.Message?.Role) ?? AuthorRole.Assistant,
+                content: response?.Message?.Content ?? string.Empty,
                 innerContent: response,
-                modelId: "llama3.1"
+                modelId: "llama3.2-vision"
             );
             ;
         }
